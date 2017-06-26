@@ -1,6 +1,9 @@
 const functions = require('firebase-functions')
-const gcs = require('@google-cloud/storage')()
+const gcs = require('@google-cloud/storage')({keyFilename: 'functions-e46fa-firebase-adminsdk-c2e2u-fd76e6730a.json'})
 const spawn = require('child-process-promise').spawn
+const admin = require('firebase-admin')
+
+admin.initializeApp(functions.config().firebase)
 
 exports.generateThumbnail = functions.storage.object()
     .onChange(event => {
@@ -10,6 +13,9 @@ exports.generateThumbnail = functions.storage.object()
         const fileBucket = object.bucket
         const bucket = gcs.bucket(fileBucket)
         const tempFilePath = `/tmp/${fileName}`
+        const ref = admin.database().ref()
+        const file = bucket.file(filePath) // Returns a file object which contains data about file as well as capable of generating signed url
+        const thumbFilePath = filePath.replace(/(\/)?([^\/]*)$/, '$1thumb_$2')
 
         if (fileName.startsWith('thumb_')) {
             console.log('Already a Thumbnail.')
@@ -42,12 +48,28 @@ exports.generateThumbnail = functions.storage.object()
             return spawn('convert', [tempFilePath, '-thumbnail', '200x200>', tempFilePath])
         })
         .then(() => {
-            console.log('Thumbnail created')
-            const thumbFilePath = filePath.replace(/(\/)?([^\/]*)$/, '$1thumb_$2')
+            console.log('Thumbnail created')            
 
             return bucket.upload(tempFilePath, {
                 destination: thumbFilePath
             })
+        }).then(() => {
+            const thumbFile = bucket.file(thumbFilePath)
+            const config = {
+                action: 'read',
+                write: '03-09-2491'
+            }
+            return Promise.all([
+                thumbFile.getSignedUrl(config),
+                file.getSignedUrl(config)
+            ]).then(results => {
+                const thumbResult = results[0]
+                const originalResult = results[1]
+                const thumbFileUrl = thumbResult[0]
+                const fileUrl = originalResult[0]
+
+                return ref.child('posts').push({path: fileUrl, thumbnail: thumbFileUrl})
+            })           
         })
     })
 
