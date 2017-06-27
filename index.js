@@ -1,3 +1,33 @@
+// Authentication
+
+const functions = require('firebase-functions')
+const admin = require('firebase-admin')
+admin.initializeApp(functions.config().firebase)
+
+const ref = admin.database().ref()
+
+// User create
+exports.createUserAccount = functions.auth.user().onCreate(event => {
+    const uid = event.data.uid
+    const email = event.data.email
+    const photoUrl = event.data.photoUrl || 'https://www.atomix.com.au/media/2015/06/atomix_user31.png'
+
+    const newUserRef = ref.child(`/users/${uid}`)
+    return newUserRef.set({
+        photoUrl: photoUrl,
+        email: email
+    })
+})
+
+// Delete user
+exports.cleanupUserData = functions.auth.user().onDelete(event => {
+    const uid = event.data.uid
+    const userRef = ref.child(`/users/${uid}`)
+    return userRef.update({isDeleted: true})
+})
+
+/*
+Cloud Storage
 const functions = require('firebase-functions')
 const gcs = require('@google-cloud/storage')({keyFilename: 'functions-e46fa-firebase-adminsdk-c2e2u-fd76e6730a.json'})
 const spawn = require('child-process-promise').spawn
@@ -39,7 +69,7 @@ exports.generateThumbnail = functions.storage.object()
             .then(// write image to storage)
         })
         */
-
+/*
         return bucket.file(filePath).download({
             destination: tempFilePath
         })
@@ -72,7 +102,7 @@ exports.generateThumbnail = functions.storage.object()
             })           
         })
     })
-
+*/
 
 // // Create and Deploy Your First Cloud Functions
 // // https://firebase.google.com/docs/functions/write-firebase-functions
